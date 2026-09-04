@@ -1,123 +1,164 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Plus } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { ArrowUpRight, Plus } from "lucide-react";
 import { translations, type Lang } from "../i18n";
+import { siteConfig } from "../site-config";
+import { buildContactMailto } from "../contact";
+
+export const CONTACT_TOPICS = [
+  "investment",
+  "operators",
+  "systems",
+  "standards",
+] as const;
+export type ContactTopic = (typeof CONTACT_TOPICS)[number];
 
 type ContactSectionProps = {
-  lang?: Lang;
+  lang: Lang;
+  topic: ContactTopic;
+  onTopicChange: (topic: ContactTopic) => void;
 };
 
-export default function ContactSection({ lang = "en" }: ContactSectionProps) {
-  const t = translations[lang];
+export default function ContactSection({
+  lang,
+  topic,
+  onTopicChange,
+}: ContactSectionProps) {
+  const t = translations[lang].contact;
+  const [draftRequested, setDraftRequested] = useState(false);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const topicLabel = t.options[CONTACT_TOPICS.indexOf(topic)];
+    const mailto = buildContactMailto(siteConfig.contactEmail, {
+      topic: topicLabel,
+      name: String(form.get("name") ?? ""),
+      organization: String(form.get("organization") ?? ""),
+      email: String(form.get("email") ?? ""),
+      message: String(form.get("message") ?? ""),
+    });
+    window.location.href = mailto;
+    setDraftRequested(true);
+  }
 
   return (
-    <section id="contact-us" className="relative z-10 px-6 py-32 max-w-6xl mx-auto bg-neutral-950 text-white">
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-16 md:gap-24">
-        {/* Left Sidebar (40% approximation: col-span-5) */}
-        <div className="md:col-span-5 flex flex-col justify-between">
-          <div>
-            <motion.h2 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-xl md:text-3xl font-bold uppercase tracking-wide mb-16 leading-snug"
-            >
-              {t.contact.heading}
-            </motion.h2>
-            <div className="space-y-10">
-              {t.contact.bullets.map((text, i) => (
-                <motion.div 
-                  key={i}
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.2 }}
-                  className="flex items-start gap-6 group"
-                >
-                  <Plus className="w-5 h-5 text-neutral-400 mt-0.5 flex-shrink-0 group-hover:text-white transition-colors duration-500" strokeWidth={1.5} />
-                  <p className="text-neutral-300 text-sm md:text-base font-normal leading-relaxed group-hover:text-neutral-200 transition-colors duration-500">
-                    {text}
-                  </p>
-                </motion.div>
-              ))}
-            </div>
+    <section id="contact-us" className="section contact-section content-width">
+      <div id="investors" className="contact-grid">
+        <div>
+          <p className="eyebrow">{t.kicker}</p>
+          <h2>{t.title}</h2>
+          <p className="section-description">{t.description}</p>
+          <div className="contact-directions">
+            {t.bullets.map((bullet) => (
+              <div key={bullet.title}>
+                <Plus size={19} strokeWidth={1.3} aria-hidden="true" />
+                <div>
+                  <h3>{bullet.title}</h3>
+                  <p>{bullet.description}</p>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="mt-20 md:mt-0">
-            <p className="text-[10px] text-neutral-400 font-mono leading-relaxed mt-auto">
-              {t.contact.form.privacyNote}
-            </p>
-          </div>
+          <a
+            className="contact-email"
+            href={`mailto:${siteConfig.contactEmail}`}
+          >
+            {siteConfig.contactEmail}
+            <ArrowUpRight size={17} aria-hidden="true" />
+          </a>
         </div>
-
-        {/* Right Form (60% approximation: col-span-7) */}
-        <motion.div 
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 1 }}
-          className="md:col-span-7"
+        <form
+          onSubmit={handleSubmit}
+          onChange={() => setDraftRequested(false)}
+          className="contact-form"
+          aria-label={t.title}
         >
-          <form className="flex flex-col space-y-12">
-            {/* Row 1 */}
-            <div className="relative group">
-              <label className="block text-[10px] uppercase tracking-[0.25em] font-mono text-neutral-400 mb-3">{t.contact.form.helpLabel}</label>
-              <textarea 
-                className="w-full bg-transparent border-b-[0.5px] border-neutral-600 text-white px-0 py-3 focus:outline-none focus:border-white transition-all duration-500 min-h-[120px] resize-none hover:border-neutral-500 focus:shadow-[0_2px_15px_-3px_rgba(255,255,255,0.15)] font-normal"
+          <div className="form-field">
+            <label htmlFor="contact-topic">{t.form.topic}</label>
+            <select
+              id="contact-topic"
+              name="topic"
+              value={topic}
+              onChange={(event) =>
+                onTopicChange(event.target.value as ContactTopic)
+              }
+            >
+              {CONTACT_TOPICS.map((value, i) => (
+                <option key={value} value={value}>
+                  {t.options[i]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-row">
+            <div className="form-field">
+              <label htmlFor="contact-name">{t.form.name} *</label>
+              <input
+                id="contact-name"
+                name="name"
+                autoComplete="name"
                 required
-              ></textarea>
+                maxLength={100}
+              />
             </div>
-            
-            {/* Row 2 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              <div className="relative group">
-                <label className="block text-[10px] uppercase tracking-[0.25em] font-mono text-neutral-400 mb-3">{t.contact.form.firstName}</label>
-                <input 
-                  type="text"
-                  className="w-full bg-transparent border-b-[0.5px] border-neutral-600 text-white px-0 py-3 focus:outline-none focus:border-white transition-all duration-500 hover:border-neutral-500 focus:shadow-[0_2px_15px_-3px_rgba(255,255,255,0.15)] font-normal"
-                  required
-                />
-              </div>
-              <div className="relative group">
-                <label className="block text-[10px] uppercase tracking-[0.25em] font-mono text-neutral-400 mb-3">{t.contact.form.lastName}</label>
-                <input 
-                  type="text"
-                  className="w-full bg-transparent border-b-[0.5px] border-neutral-600 text-white px-0 py-3 focus:outline-none focus:border-white transition-all duration-500 hover:border-neutral-500 focus:shadow-[0_2px_15px_-3px_rgba(255,255,255,0.15)] font-normal"
-                  required
-                />
-              </div>
+            <div className="form-field">
+              <label htmlFor="contact-organization">
+                {t.form.organization}
+              </label>
+              <input
+                id="contact-organization"
+                name="organization"
+                autoComplete="organization"
+                maxLength={150}
+              />
             </div>
-
-            {/* Row 3 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              <div className="relative group">
-                <label className="block text-[10px] uppercase tracking-[0.25em] font-mono text-neutral-400 mb-3">{t.contact.form.email}</label>
-                <input 
-                  type="email"
-                  className="w-full bg-transparent border-b-[0.5px] border-neutral-600 text-white px-0 py-3 focus:outline-none focus:border-white transition-all duration-500 hover:border-neutral-500 focus:shadow-[0_2px_15px_-3px_rgba(255,255,255,0.15)] font-normal"
-                  required
-                />
-              </div>
-              <div className="relative group">
-                <label className="block text-[10px] uppercase tracking-[0.25em] font-mono text-neutral-400 mb-3">{t.contact.form.phone}</label>
-                <input 
-                  type="tel"
-                  className="w-full bg-transparent border-b-[0.5px] border-neutral-600 text-white px-0 py-3 focus:outline-none focus:border-white transition-all duration-500 hover:border-neutral-500 focus:shadow-[0_2px_15px_-3px_rgba(255,255,255,0.15)] font-normal"
-                />
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <div className="flex justify-end pt-12">
-              <button 
-                type="submit"
-                className="bg-white text-black px-12 py-4 text-[11px] font-bold tracking-[0.2em] uppercase hover:scale-105 hover:bg-neutral-200 transition-all duration-500 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] will-change-transform"
-              >
-                {t.contact.form.submit}
-              </button>
-            </div>
-          </form>
-        </motion.div>
+          </div>
+          <div className="form-field">
+            <label htmlFor="contact-email">{t.form.email} *</label>
+            <input
+              id="contact-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              maxLength={254}
+            />
+          </div>
+          <div className="form-field">
+            <label htmlFor="contact-message">{t.form.message} *</label>
+            <textarea
+              id="contact-message"
+              name="message"
+              rows={4}
+              required
+              maxLength={1500}
+            />
+          </div>
+          <p id="contact-note" className="form-note">
+            {t.form.required}
+            <br />
+            {t.form.note}
+          </p>
+          <button
+            type="submit"
+            className="button button-primary"
+            aria-describedby="contact-note"
+          >
+            {t.form.submit}
+            <ArrowUpRight size={17} aria-hidden="true" />
+          </button>
+          <p role="status" aria-live="polite" className="form-status">
+            {draftRequested ? t.form.opened : ""}
+          </p>
+          {draftRequested && (
+            <a href={`mailto:${siteConfig.contactEmail}`} className="text-link">
+              {t.form.direct}
+              <ArrowUpRight size={15} aria-hidden="true" />
+            </a>
+          )}
+        </form>
       </div>
     </section>
   );

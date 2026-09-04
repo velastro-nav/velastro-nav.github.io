@@ -1,356 +1,545 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
-import { Crosshair, Orbit, ShieldCheck, Activity } from "lucide-react";
-import ContactSection from "./components/ContactSection";
+import {
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+} from "framer-motion";
+import {
+  ArrowDown,
+  ArrowRight,
+  Orbit,
+  Radio,
+  Network,
+  Satellite,
+  Server,
+  Plus,
+  Menu,
+  X,
+} from "lucide-react";
+import ContactSection, { type ContactTopic } from "./components/ContactSection";
 import velastroLogo from "../Velastro_logos-3.png";
 import { translations, type Lang } from "./i18n";
+import { siteConfig } from "./site-config";
 
 const NAV_LINKS = [
-  { id: "home", translationKey: "home" },
-  { id: "solution", translationKey: "solution" },
-  { id: "team", translationKey: "team" },
-  { id: "contact-us", translationKey: "contact" },
+  { id: "vision", key: "vision" },
+  { id: "solution", key: "system" },
+  { id: "standards", key: "standards" },
+  { id: "company", key: "company" },
 ] as const;
-
 const LANGUAGES = [
   { code: "en", label: "EN" },
   { code: "de", label: "DE" },
-  { code: "cn", label: "CN" },
-] as const satisfies ReadonlyArray<{ code: Lang; label: string }>;
-
-const STAT_VALUES = ["<1cm", "99.999%", "2ms"];
-
-const TECH_FEATURES = [
-  { icon: Crosshair },
-  { icon: ShieldCheck },
-  { icon: Orbit },
+  { code: "cn", label: "中文" },
 ] as const;
+const FOCUS_LINKS = ["payloads", "ground-systems", "standards"];
+
+function SectionHeading({
+  kicker,
+  title,
+  description,
+}: {
+  kicker: string;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <header className="section-heading">
+      <p className="eyebrow">{kicker}</p>
+      <h2>{title}</h2>
+      {description && <p className="section-description">{description}</p>}
+    </header>
+  );
+}
+
+function Reveal({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  const reduced = useReducedMotion();
+  return (
+    <motion.div
+      className={className}
+      initial={false}
+      whileInView={{ y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: reduced ? 0 : 0.7 }}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export default function Home() {
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [lang, setLang] = useState<Lang>("en");
+  const [languageReady, setLanguageReady] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const [lang, setLang] = useState<Lang>("en");
+  const [topic, setTopic] = useState<ContactTopic>("investment");
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const reducedMotion = useReducedMotion();
+  const pointerX = useMotionValue(0);
+  const pointerY = useMotionValue(0);
+  const orbitX = useSpring(pointerX, { stiffness: 50, damping: 20 });
+  const orbitY = useSpring(pointerY, { stiffness: 50, damping: 20 });
+  const t = translations[lang];
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem("lang");
-      if (stored && (stored === "en" || stored === "de" || stored === "cn")) {
-        setLang(stored as Lang);
+      if (stored === "en" || stored === "de" || stored === "cn")
+        setLang(stored);
+    } catch {
+      /* Language switching works when browser storage is unavailable. */
+    }
+    setLanguageReady(true);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = lang === "cn" ? "zh-CN" : lang;
+    document.title = t.metadata.title;
+    document
+      .querySelector('meta[name="description"]')
+      ?.setAttribute("content", t.metadata.description);
+    if (languageReady) {
+      try {
+        localStorage.setItem("lang", lang);
+      } catch {
+        /* Optional preference storage. */
       }
-    } catch {
-      // Ignore storage failures in restricted browser contexts.
     }
+  }, [lang, languageReady, t.metadata.title, t.metadata.description]);
+
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 50);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("lang", lang);
-      document.documentElement.lang = lang === "cn" ? "zh-CN" : lang;
-    } catch {
-      // Ignore storage failures in restricted browser contexts.
+    if (reducedMotion) {
+      pointerX.set(0);
+      pointerY.set(0);
+      return;
     }
-  }, [lang]);
-
-  const t = translations[lang];
+    const onPointer = (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+      pointerX.set((event.clientX / window.innerWidth - 0.5) * -20);
+      pointerY.set((event.clientY / window.innerHeight - 0.5) * -20);
+    };
+    window.addEventListener("pointermove", onPointer, { passive: true });
+    return () => window.removeEventListener("pointermove", onPointer);
+  }, [reducedMotion, pointerX, pointerY]);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({
-        x: (e.clientX / window.innerWidth - 0.5) * 20,
-        y: (e.clientY / window.innerHeight - 0.5) * 20,
-      });
+    if (!isMobileMenuOpen) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMobileMenuOpen(false);
+        menuButton.current?.focus();
+      }
     };
-
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const onResize = () => {
+      if (desktop.matches) setIsMobileMenuOpen(false);
     };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("keydown", onEscape);
+    desktop.addEventListener("change", onResize);
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("keydown", onEscape);
+      desktop.removeEventListener("change", onResize);
     };
-  }, []);
+  }, [isMobileMenuOpen]);
 
-  const titleText = t.titleText.split(" ");
+  const selectTopic = (value: ContactTopic) => {
+    setTopic(value);
+    setIsMobileMenuOpen(false);
+  };
+  const languageButtons = (
+    <div className="language-switch" role="group" aria-label={t.languageLabel}>
+      {LANGUAGES.map((language) => (
+        <button
+          key={language.code}
+          type="button"
+          lang={language.code === "cn" ? "zh-CN" : language.code}
+          aria-label={`${t.languageLabel}: ${language.label}`}
+          aria-pressed={lang === language.code}
+          onClick={() => {
+            setLang(language.code);
+            setIsMobileMenuOpen(false);
+          }}
+        >
+          {language.label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
-    <main className="min-h-screen bg-neutral-950 overflow-hidden relative text-white font-sans selection:bg-white/20">
-      {/* Background Grid & 3D Lines Simulation */}
-      <div className="fixed inset-0 z-0 bg-grid-dots opacity-10 pointer-events-none" />
-      
-      <motion.div 
-        className="fixed inset-0 z-0 flex items-center justify-center pointer-events-none"
-        animate={{
-          x: mousePosition.x * -1,
-          y: mousePosition.y * -1,
-        }}
-        transition={{ type: "spring", stiffness: 50, damping: 20 }}
+    <div className="site-shell">
+      <a className="skip-link" href="#main-content">
+        {t.skip}
+      </a>
+      <div
+        className="fixed inset-0 z-0 bg-grid-dots opacity-10 pointer-events-none"
+        aria-hidden="true"
+      />
+      <motion.div
+        className="orbital-background"
+        style={{ x: orbitX, y: orbitY }}
+        aria-hidden="true"
       >
-        {/* Orbital Ring 1 */}
-        <div className="absolute w-[600px] h-[600px] md:w-[800px] md:h-[800px] rounded-full border border-white/10 animate-spin-slow">
-          <div className="absolute top-0 left-1/2 w-2 h-2 bg-white rounded-full shadow-[0_0_20px_4px_rgba(255,255,255,0.8)] -translate-x-1/2 -translate-y-1/2" />
+        <div className="orbital-ring orbital-ring-inner animate-spin-slow">
+          <span />
         </div>
-        {/* Orbital Ring 2 */}
-        <div className="absolute w-[800px] h-[800px] md:w-[1100px] md:h-[1100px] rounded-full border border-white/5 animate-spin-slow-reverse">
-          <div className="absolute right-0 top-1/2 w-1.5 h-1.5 bg-white/80 rounded-full shadow-[0_0_15px_3px_rgba(255,255,255,0.6)] translate-x-1/2 -translate-y-1/2" />
+        <div className="orbital-ring orbital-ring-outer animate-spin-slow-reverse">
+          <span />
         </div>
       </motion.div>
 
-      {/* Navbar */}
-      <motion.nav
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-6 transition-all duration-500 will-change-transform ${
-          isScrolled ? "bg-neutral-950/60 backdrop-blur-xl border-b border-white/10" : "bg-transparent border-b border-transparent"
-        }`}
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+      <nav
+        aria-label={t.navigationLabel}
+        className={`site-nav ${isScrolled || isMobileMenuOpen ? "site-nav-scrolled" : ""}`}
       >
-        <div className="flex w-1/3 items-center gap-3">
-          <a
-            href="#home"
-            className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-black/40 opacity-80 transition-all duration-300 hover:border-white/30 hover:opacity-100 hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.35)] md:hidden"
-            aria-label="Velastro home"
-          >
-            <Image
-              src={velastroLogo}
-              alt=""
-              width={40}
-              height={40}
-              priority
-              className="h-full w-full object-cover"
-            />
-          </a>
-        </div>
-
-        <div className="flex items-center gap-3 md:hidden">
-          <button
-            type="button"
-            onClick={() => setIsMobileMenuOpen((open) => !open)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white transition-all duration-300 hover:border-white/30 hover:bg-black/60"
-            aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
-            aria-expanded={isMobileMenuOpen}
-            aria-controls="mobile-navigation"
-          >
-            <span className="sr-only">Toggle navigation menu</span>
-            <span className="flex flex-col gap-1.5">
-              <span className={`block h-px w-4 bg-current transition-transform duration-300 ${isMobileMenuOpen ? "translate-y-1.5 rotate-45" : ""}`} />
-              <span className={`block h-px w-4 bg-current transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-0" : ""}`} />
-              <span className={`block h-px w-4 bg-current transition-transform duration-300 ${isMobileMenuOpen ? "-translate-y-1.5 -rotate-45" : ""}`} />
-            </span>
-          </button>
-        </div>
-
-        <div className="hidden flex-1 items-center justify-end gap-8 text-[11px] font-medium tracking-[0.15em] md:flex">
-          <a
-            href="#home"
-            className="relative mr-1 flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-black/40 opacity-80 transition-all duration-300 hover:border-white/30 hover:opacity-100 hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.35)]"
-            aria-label="Velastro home"
-          >
-            <Image
-              src={velastroLogo}
-              alt=""
-              width={40}
-              height={40}
-              priority
-              className="h-full w-full object-cover"
-            />
-          </a>
+        <a href="#home" aria-label={t.homeLabel} className="brand-mark">
+          <Image src={velastroLogo} alt="" width={40} height={40} priority />
+          <span>VELASTRO</span>
+        </a>
+        <div className="desktop-navigation">
           {NAV_LINKS.map((link) => (
-            <a
-              key={link.id}
-              href={`#${link.id}`}
-              className="text-neutral-300 hover:text-white transition-all duration-300 hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]"
-            >
-              {t.navLinks[link.translationKey]}
+            <a key={link.id} href={`#${link.id}`}>
+              {t.nav[link.key]}
             </a>
           ))}
           <a
-            href="#investors"
-            className="px-5 py-2.5 border border-white/20 text-white hover:bg-white hover:text-black transition-all duration-500 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] ml-4"
+            href="#contact-us"
+            className="button button-outline nav-investors"
+            onClick={() => selectTopic("investment")}
           >
             {t.investors}
           </a>
-
-          <div className="ml-2 inline-flex items-center gap-1 border-l border-white/10 pl-4" aria-label={t.languageLabel}>
-            <span className="sr-only">{t.languageLabel}</span>
-            {LANGUAGES.map((language) => (
-              <button
-                key={language.code}
-                type="button"
-                onClick={() => setLang(language.code)}
-                className={`px-2 py-1 text-[11px] rounded-sm transition-colors duration-200 ${lang === language.code ? "bg-white text-black" : "text-neutral-300 hover:text-white"}`}
-                aria-label={`${t.languageLabel}: ${language.label}`}
-                aria-pressed={lang === language.code}
-              >
-                {language.label}
-              </button>
-            ))}
-          </div>
+          {languageButtons}
         </div>
+        <button
+          ref={menuButton}
+          type="button"
+          className="mobile-menu-toggle"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? t.closeMenu : t.openMenu}
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="mobile-navigation"
+        >
+          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+        {isMobileMenuOpen && (
+          <div id="mobile-navigation" className="mobile-navigation">
+            {NAV_LINKS.map((link) => (
+              <a
+                key={link.id}
+                href={`#${link.id}`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                {t.nav[link.key]}
+              </a>
+            ))}
+            <a
+              href="#contact-us"
+              className="button button-outline"
+              onClick={() => selectTopic("investment")}
+            >
+              {t.investors}
+            </a>
+            {languageButtons}
+          </div>
+        )}
+      </nav>
 
-        {isMobileMenuOpen ? (
-          <div
-            id="mobile-navigation"
-            className="absolute left-0 top-full w-full border-b border-white/10 bg-neutral-950/95 px-6 py-5 backdrop-blur-xl md:hidden"
+      <main id="main-content">
+        <section id="home" className="hero-section">
+          <motion.div
+            initial={false}
+            animate={{ opacity: 1 }}
+            transition={{ duration: reducedMotion ? 0 : 1.2 }}
+            className="hero-content"
           >
-              <div className="flex flex-col gap-4 text-[11px] font-medium tracking-[0.18em]">
-                {NAV_LINKS.map((link) => (
-                  <a
-                    key={link.id}
-                    href={`#${link.id}`}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="text-neutral-300 transition-colors duration-300 hover:text-white"
-                  >
-                    {t.navLinks[link.translationKey]}
-                  </a>
-                ))}
-                <a
-                  href="#investors"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="mt-2 inline-flex items-center justify-center border border-white/20 px-5 py-3 text-white transition-all duration-300 hover:bg-white hover:text-black"
-                >
-                  {t.investors}
-                </a>
+            <p className="eyebrow hero-stage">{t.stage}</p>
+            <h1 className="hero-brand">VELASTRO</h1>
+            <p className="hero-title">{t.titleText}</p>
+            <p className="hero-description">{t.heroDescription}</p>
+            <div className="button-row">
+              <a
+                href="#contact-us"
+                className="button button-primary"
+                onClick={() => selectTopic("investment")}
+              >
+                {t.investors}
+                <ArrowRight size={16} aria-hidden="true" />
+              </a>
+              <a href="#solution" className="button button-outline">
+                {t.learnSystem}
+              </a>
+            </div>
+          </motion.div>
+          <aside className="scope-panel" aria-label={t.scope.title}>
+            <p className="eyebrow">
+              <Orbit size={14} aria-hidden="true" />
+              {t.scope.title}
+            </p>
+            <dl>
+              {t.scope.items.map((item) => (
+                <div key={item.label}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </aside>
+          <a href="#solution" className="explore-link">
+            {t.exploreArchitecture}
+            <ArrowDown size={16} aria-hidden="true" />
+          </a>
+        </section>
 
-                <div className="mt-4 flex items-center gap-2" aria-label={t.languageLabel}>
-                  <span className="mr-2 text-neutral-500">{t.languageLabel}</span>
-                  {LANGUAGES.map((language) => (
-                    <button
-                      key={language.code}
-                      type="button"
-                      onClick={() => {
-                        setLang(language.code);
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className={`px-3 py-2 text-[11px] rounded-sm ${lang === language.code ? "bg-white text-black" : "text-neutral-300 hover:text-white"}`}
-                      aria-pressed={lang === language.code}
-                    >
-                      {language.label}
-                    </button>
-                  ))}
+        <section className="focus-strip" aria-label={t.focusKicker}>
+          <div className="content-width">
+            <p className="eyebrow text-center">{t.focusKicker}</p>
+            <div className="focus-items">
+              {t.focusAreas.map((area, i) => (
+                <a key={area} href={`#${FOCUS_LINKS[i]}`}>
+                  <span className="mono-index">0{i + 1}</span>
+                  {area}
+                  <ArrowRight size={16} aria-hidden="true" />
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="vision" className="section content-width">
+          <Reveal>
+            <SectionHeading {...t.vision} />
+            <div className="three-column">
+              {t.vision.cards.map((card, i) => {
+                const Icon = [Orbit, Radio, Network][i];
+                return (
+                  <article className="principle-card" key={card.title}>
+                    <Icon size={23} strokeWidth={1.3} aria-hidden="true" />
+                    <h3>{card.title}</h3>
+                    <p>{card.description}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </Reveal>
+        </section>
+
+        <section id="solution" className="section content-width">
+          <Reveal>
+            <SectionHeading {...t.architecture} />
+            <figure className="architecture-panel">
+              <div className="operator-grid">
+                {t.architecture.operators.map((operator) => (
+                  <div className="operator-node" key={operator}>
+                    <p className="operator-name">{operator}</p>
+                    <p className="operator-role">
+                      {t.architecture.operatorRole}
+                    </p>
+                    <div className="payload-node">
+                      <Satellite
+                        size={21}
+                        strokeWidth={1.3}
+                        aria-hidden="true"
+                      />
+                      <span>{t.architecture.payload}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="architecture-bridge" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+              <p className="architecture-connection">
+                {t.architecture.connection}
+              </p>
+              <div className="ground-node">
+                <Server size={26} strokeWidth={1.3} aria-hidden="true" />
+                <div>
+                  <h3>{t.architecture.ground}</h3>
+                  <p>{t.architecture.groundDescription}</p>
                 </div>
               </div>
-          </div>
-        ) : null}
-      </motion.nav>
-
-      {/* Floating Live Stats */}
-      <motion.div 
-        className="fixed bottom-8 left-8 z-40 border border-white/10 bg-neutral-950/40 backdrop-blur-md p-4 hidden md:block hover:border-white/30 transition-colors duration-500"
-        initial={{ opacity: 0, x: -50 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 1, delay: 1.5 }}
-      >
-        <div className="flex items-center gap-2 mb-3 text-[10px] text-neutral-400 uppercase tracking-widest">
-          <Activity className="w-3 h-3 text-white/70" /> {t.liveTelemetry}
-        </div>
-        <div className="space-y-2">
-          {STAT_VALUES.map((value, i) => (
-            <div key={i} className="flex justify-between items-center gap-8 border-b border-white/5 pb-1 last:border-0 last:pb-0">
-              <span className="text-xs text-neutral-300 font-mono">{t.stats[i] ?? ""}</span>
-              <span className="text-sm font-mono tracking-wider animate-pulse text-white">{value}</span>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* Hero Section */}
-      <section id="home" className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 text-center pt-20">
-        <motion.h1 
-          className="relative z-10 text-6xl md:text-9xl font-black tracking-[0.25em] mb-8"
-          initial={{ opacity: 0, scale: 0.95, filter: "blur(10px)" }}
-          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-          transition={{ duration: 1.5, ease: "easeOut", delay: 0.2 }}
-        >
-          VELASTRO
-        </motion.h1>
-        
-        <div className="relative z-10 text-sm md:text-lg text-neutral-300 font-normal tracking-[0.3em] mb-16 uppercase overflow-hidden flex gap-2 flex-wrap justify-center">
-          {titleText.map((word, i) => (
-            <motion.span
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.8 + i * 0.15, ease: [0.16, 1, 0.3, 1] }}
-            >
-              {word}
-            </motion.span>
-          ))}
-        </div>
-
-        <motion.div
-           initial={{ opacity: 0 }}
-           animate={{ opacity: 1 }}
-           transition={{ duration: 2, delay: 2.5 }}
-           className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 text-neutral-400 hover:text-white transition-colors duration-500"
-        >
-          <span className="text-[10px] uppercase tracking-widest">{t.exploreArchitecture}</span>
-          <div className="w-[1px] h-12 bg-gradient-to-b from-current to-transparent" />
-        </motion.div>
-      </section>
-
-      {/* Partners Section */}
-      <section id="investors" className="relative z-10 py-20 border-y border-white/5 bg-neutral-950/30 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto px-6">
-          <p className="text-[10px] text-center text-neutral-400 uppercase tracking-[0.3em] mb-12">{t.partnersKicker}</p>
-          <div className="flex flex-wrap justify-center gap-12 md:gap-24 opacity-40 grayscale">
-             {/* Mock Logos using text for structural matching */}
-            {['LOCKHEED', 'NORTHROP', 'AIRBUS', 'THALES', 'BOEING'].map((partner, i) => (
-              <motion.div 
-                key={i}
-                whileHover={{ scale: 1.05, opacity: 1, filter: "drop-shadow(0 0 10px rgba(255,255,255,0.3))" }}
-                className="text-xl md:text-2xl font-bold tracking-widest text-neutral-300 cursor-default transition-all duration-500"
-              >
-                {partner}
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Technical Comparison Section */}
-      <section id="solution" className="relative z-10 px-6 py-32 max-w-6xl mx-auto">
-        <motion.div 
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          className="border-[0.5px] border-white/20 bg-neutral-950/40 backdrop-blur-2xl p-8 md:p-16 hover:border-white/40 transition-colors duration-700 hover:shadow-[0_0_30px_rgba(255,255,255,0.05)]"
-        >
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-16 pb-8 relative group">
-            <div className="absolute bottom-0 left-0 w-full h-[0.5px] bg-neutral-800 group-hover:bg-neutral-600 transition-colors duration-500" />
-            <div>
-              <h3 className="text-2xl md:text-4xl font-normal tracking-wide mb-3">{t.technical.title}</h3>
-              <p className="text-neutral-400 tracking-wider text-sm md:text-base">- {t.technical.subtitle}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-neutral-300 text-xs md:text-sm leading-relaxed font-normal">
-            {t.technical.cards.map((card, i) => {
-              const Icon = TECH_FEATURES[i]?.icon ?? Crosshair;
-
-              return (
-                <div key={card.title} className={`space-y-6 group cursor-default ${i > 0 ? "relative md:pl-12" : ""}`}>
-                  {i > 0 ? <div className="hidden md:block absolute left-0 top-0 w-[0.5px] h-full bg-neutral-800 transition-colors duration-500 group-hover:bg-neutral-600" /> : null}
-                  <Icon className="text-neutral-400 w-5 h-5 mb-8 group-hover:text-white transition-colors duration-500 group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
-                  <div className="font-semibold text-white tracking-wider uppercase mb-4 text-[10px] md:text-xs">{card.title}</div>
-                  <p className="group-hover:text-neutral-300 transition-colors duration-500">{card.description}</p>
+              <div className="standard-band">
+                <Network size={18} aria-hidden="true" />
+                <p>{t.architecture.standards}</p>
+              </div>
+              <figcaption>
+                <div className="diagram-legend">
+                  {t.architecture.legend.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      </section>
+                <p>{t.architecture.note}</p>
+              </figcaption>
+            </figure>
+          </Reveal>
+        </section>
 
-      {/* Contact Section */}
-      <ContactSection lang={lang} />
-    </main>
+        <section id="products" className="section content-width">
+          <Reveal>
+            <SectionHeading {...t.products} />
+            <div className="product-grid">
+              {t.products.cards.map((product, i) => {
+                const Icon = i === 0 ? Satellite : Server;
+                return (
+                  <article
+                    id={i === 0 ? "payloads" : "ground-systems"}
+                    className="product-panel"
+                    key={product.title}
+                  >
+                    <div className="product-top">
+                      <span className="mono-index">0{i + 1}</span>
+                      <Icon size={28} strokeWidth={1.3} aria-hidden="true" />
+                    </div>
+                    <h3>{product.title}</h3>
+                    <p>{product.description}</p>
+                    <dl>
+                      <dt>{t.products.scopeLabel}</dt>
+                      <dd>{product.scope}</dd>
+                      <dt>{t.products.interfacesLabel}</dt>
+                      <dd>{product.interfaces}</dd>
+                    </dl>
+                    <a
+                      className="text-link"
+                      href="#contact-us"
+                      onClick={() => selectTopic("systems")}
+                    >
+                      {product.cta}
+                      <ArrowRight size={16} aria-hidden="true" />
+                    </a>
+                  </article>
+                );
+              })}
+            </div>
+          </Reveal>
+        </section>
+
+        <section id="standards" className="section standards-section">
+          <div className="content-width">
+            <Reveal>
+              <SectionHeading {...t.standards} />
+              <p className="status-label">
+                <span aria-hidden="true" />
+                {t.standards.status}
+              </p>
+              <div className="standard-list">
+                {t.standards.cards.map((card, i) => (
+                  <article key={card.title}>
+                    <span className="mono-index">0{i + 1}</span>
+                    <h3>{card.title}</h3>
+                    <p>{card.description}</p>
+                    <Plus size={18} aria-hidden="true" />
+                  </article>
+                ))}
+              </div>
+              <a
+                className="text-link"
+                href="#contact-us"
+                onClick={() => selectTopic("standards")}
+              >
+                {t.standards.cta}
+                <ArrowRight size={16} aria-hidden="true" />
+              </a>
+            </Reveal>
+          </div>
+        </section>
+
+        <section id="roadmap" className="section content-width">
+          <Reveal>
+            <SectionHeading {...t.roadmap} />
+            <div className="roadmap-grid">
+              {t.roadmap.steps.map((step, i) => (
+                <article className="roadmap-step" key={step.title}>
+                  <div className="roadmap-marker">
+                    <span>0{i + 1}</span>
+                    <span className="roadmap-line" />
+                  </div>
+                  <p className="eyebrow">{t.roadmap.planned}</p>
+                  <h3>{step.title}</h3>
+                  <p>{step.description}</p>
+                </article>
+              ))}
+            </div>
+          </Reveal>
+        </section>
+
+        <section id="company" className="section content-width">
+          <Reveal>
+            <div className="company-grid">
+              <SectionHeading {...t.company} />
+              <div className="company-mission">
+                <p className="eyebrow">{t.company.focus}</p>
+                <p>{t.company.focusDescription}</p>
+                <span className="status-label">{t.stage}</span>
+              </div>
+            </div>
+            <div id="team" className="team-section">
+              <h3 className="eyebrow">{t.company.teamLabel}</h3>
+              <div className="team-grid">
+                {siteConfig.team.map((member) => (
+                  <article className="team-card" key={member.name}>
+                    <div>
+                      <h4>{member.name}</h4>
+                      <span className="eyebrow">{member.role[lang]}</span>
+                    </div>
+                    <p>{member.bio[lang]}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </section>
+
+        <ContactSection lang={lang} topic={topic} onTopicChange={setTopic} />
+      </main>
+      <footer className="site-footer content-width">
+        <div className="footer-top">
+          <div>
+            <a href="#home" className="footer-brand">
+              VELASTRO{lang === "cn" && <span>帆星</span>}
+            </a>
+            <p>{t.footer.description}</p>
+          </div>
+          <a href="#home" className="text-link">
+            {t.footer.top}
+            <ArrowRight size={15} aria-hidden="true" />
+          </a>
+        </div>
+        <div className="footer-bottom">
+          <span>
+            © {new Date().getFullYear()} {siteConfig.companyName[lang]}
+          </span>
+          <a href={`mailto:${siteConfig.contactEmail}`}>
+            {siteConfig.contactEmail}
+          </a>
+          <details>
+            <summary>{t.footer.privacy}</summary>
+            <div>
+              <h2>{t.footer.privacyTitle}</h2>
+              <p>{t.footer.privacyText}</p>
+            </div>
+          </details>
+        </div>
+      </footer>
+    </div>
   );
 }
